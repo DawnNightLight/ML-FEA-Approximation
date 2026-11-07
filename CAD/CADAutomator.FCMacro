@@ -1,0 +1,53 @@
+import csv
+import os
+import FreeCAD as App
+import Import
+
+# --- CONFIGURATION ---
+# Replace with the path to your CSV file
+csv_path = r"C:\Users\murra\PycharmProjects\pythonProject1\physics\Code\lhs_simulations.csv"
+# Replace with the folder where you want to save the STEP files
+output_folder = r"C:\Users\murra\PycharmProjects\pythonProject1\physics\Misc\STEP Files\FinrayLHSVariants"
+
+# Ensure output directory exists
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
+
+# Get FreeCAD document and Spreadsheet objects
+doc = App.activeDocument()
+spreadsheet = doc.getObject("Spreadsheet")
+# Replace 'Body' with the exact label of your 3D model container in the tree view
+body = doc.getObject("Fusion")
+
+# --- AUTOMATION LOOP ---
+with open(csv_path, mode='r') as file:
+    # DictReader automatically maps the first row headers to the row values
+    reader = csv.DictReader(file)
+
+    for row in reader:
+        # 1. Update the spreadsheet cells using their ALIAS names
+        # Make sure 'Width', 'Height', and 'Length' match your spreadsheet cell aliases exactly
+        # baseSize, externalBeamWith, internalBeamSpacing, internalBeamSize
+        spreadsheet.set("baseSize", row["baseSize"])
+        spreadsheet.set("externalBeamWidth", row["externalBeamWidth"])
+        spreadsheet.set("beamSpacing", row["internalBeamSpacing"])
+        spreadsheet.set("beamSize", row["internalBeamSize"])
+
+        # 2. Force FreeCAD to rebuild the 3D geometry with new values
+        doc.recompute()
+        
+        if not body.Shape.isValid():
+            print("Conflict detected; exiting for loop")
+            break
+
+        # 3. Construct the output file path
+        filename = f"{row['baseSize']}-{row['externalBeamWidth']}-{row['internalBeamSpacing']}-{row['internalBeamSize']}.step"
+        full_output_path = os.path.join(output_folder, filename)
+
+        # 4. Export the body directly to STEP format
+        Import.export([body], full_output_path)
+
+
+        print(f"Successfully exported: {filename}")
+
+print("All variations generated successfully!")
