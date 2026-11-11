@@ -2,20 +2,12 @@ import pandas as pd
 import numpy as np
 from scipy.stats import qmc
 
-
-# ============================================================
 # SETTINGS
-# ============================================================
 
 N = 300
 SEED = 42
 BATCH_SIZE = 1000
 
-
-# ============================================================
-# PARAMETER RANGES
-# (minimum, maximum)
-# ============================================================
 # Parameter: (minimum, maximum)
 parameters = {
     "load": (0, 50),
@@ -25,9 +17,7 @@ parameters = {
     "internalBeamSize": (20, 35)
 }
 
-# ============================================================
 # CONSTRAINTS
-# ============================================================
 
 def is_valid(row):
 
@@ -55,9 +45,6 @@ def is_valid(row):
     return True
 
 
-# ============================================================
-# FUNCTION TO GENERATE LHS CANDIDATES
-# ============================================================
 
 def generate_candidates(n):
 
@@ -90,11 +77,6 @@ def generate_candidates(n):
 
     return pd.DataFrame(data)
 
-
-# ============================================================
-# GENERATE VALID DATASET
-# ============================================================
-
 rng = np.random.default_rng(SEED)
 
 valid_rows = []
@@ -118,29 +100,14 @@ while len(valid_rows) < N:
             if len(valid_rows) >= N:
                 break
 
-
-# ============================================================
-# CREATE FINAL DATAFRAME
-# ============================================================
-
 df = pd.DataFrame(valid_rows)
 
 df = df.reset_index(drop=True)
-
-
-# ============================================================
-# SAVE
-# ============================================================
 
 df.to_csv(
     "lhs_simulations.csv",
     index=False
 )
-
-
-# ============================================================
-# INFORMATION
-# ============================================================
 
 print("Generated simulations:", len(df))
 print("LHS candidates generated:", attempts * BATCH_SIZE)
