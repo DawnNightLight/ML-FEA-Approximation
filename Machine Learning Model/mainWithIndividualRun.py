@@ -19,15 +19,9 @@ from models import (
 
 trained_models = {}
 
-# ============================================================
-# 1. LOAD DATA
-# ============================================================
-
-# Read both CSV files into DataFrames
 data1 = pd.read_csv("../../Misc/Run Results/FinrayTestRun.csv")
 data2 = pd.read_csv("../../Misc/Run Results/FinrayManyVariants.csv")
 
-# Combine them (headers will automatically align)
 data = pd.concat([data1, data2], ignore_index=True)
 
 data = pd.read_csv("../../Misc/Run Results/FinrayTestRun.csv")
@@ -45,9 +39,6 @@ output_column = "max_Displacement"
 X = data[input_columns]
 y = data[output_column]
 
-# ============================================================
-# 2. PERMANENT TRAIN / TEST SPLIT
-# ============================================================
 
 X_pool, X_test, y_pool, y_test = train_test_split(
     X,
@@ -60,10 +51,6 @@ print("Total simulations:", len(data))
 print("Training pool:", len(X_pool))
 print("Test set:", len(X_test))
 
-
-# ============================================================
-# 3. EXPERIMENT SETTINGS
-# ============================================================
 
 training_sizes = [
     25,
@@ -78,7 +65,6 @@ training_sizes = [
     len(X_pool)
 ]
 
-# Don't use a size larger than the training pool
 training_sizes = [
     size for size in training_sizes
     if size <= len(X_pool)
@@ -86,10 +72,6 @@ training_sizes = [
 
 number_of_trials = 10
 
-
-# ============================================================
-# 4. MODELS
-# ============================================================
 
 models = {
 
@@ -107,16 +89,8 @@ models = {
 }
 
 
-# ============================================================
-# 5. STORE RESULTS
-# ============================================================
-
 results = []
 
-
-# ============================================================
-# 6. RUN EXPERIMENT
-# ============================================================
 
 for training_size in training_sizes:
 
@@ -133,10 +107,6 @@ for training_size in training_sizes:
         )
 
 
-        # ----------------------------------------------------
-        # Create a reproducible random selection
-        # ----------------------------------------------------
-
         X_train = X_pool.sample(
             n=training_size,
             random_state=trial
@@ -147,15 +117,8 @@ for training_size in training_sizes:
         ]
 
 
-        # ----------------------------------------------------
-        # Train every model on this SAME selection
-        # ----------------------------------------------------
-
+   
         for name, training_function in models.items():
-
-            # ================================================
-            # NEURAL NETWORK
-            # ================================================
 
             if name == "Neural Network":
 
@@ -187,10 +150,6 @@ for training_size in training_sizes:
                 ).flatten()
 
 
-            # ================================================
-            # OTHER MODELS
-            # ================================================
-
             else:
 
                 model = training_function(
@@ -202,10 +161,6 @@ for training_size in training_sizes:
                     X_test
                 )
 
-
-            # ================================================
-            # CALCULATE METRICS
-            # ================================================
 
             mae = mean_absolute_error(
                 y_test,
@@ -224,10 +179,6 @@ for training_size in training_sizes:
                 predictions
             )
 
-
-            # ================================================
-            # SAVE RESULT
-            # ================================================
 
             results.append({
 
@@ -251,10 +202,6 @@ for training_size in training_sizes:
             )
 
 
-# ============================================================
-# 7. RESULTS DATAFRAME
-# ============================================================
-
 results_df = pd.DataFrame(results)
 
 
@@ -268,19 +215,11 @@ print(
 )
 
 
-# ============================================================
-# 8. SAVE RAW RESULTS
-# ============================================================
-
 results_df.to_csv(
     "learning_curve_raw_results.csv",
     index=False
 )
 
-
-# ============================================================
-# 9. CALCULATE MEAN AND STANDARD DEVIATION
-# ============================================================
 
 summary = (
     results_df
@@ -311,19 +250,11 @@ print(
 )
 
 
-# ============================================================
-# 10. SAVE SUMMARY
-# ============================================================
-
 summary.to_csv(
     "learning_curve_summary.csv",
     index=False
 )
 
-
-# ============================================================
-# 11. PLOT R² LEARNING CURVE
-# ============================================================
 
 plt.figure()
 
@@ -361,10 +292,6 @@ plt.grid()
 
 plt.show()
 
-
-# ============================================================
-# 12. PLOT MAE LEARNING CURVE
-# ============================================================
 
 plt.figure()
 

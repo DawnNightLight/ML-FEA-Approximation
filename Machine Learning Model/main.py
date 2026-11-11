@@ -19,15 +19,9 @@ from models import (
 
 trained_models = {}
 
-# ============================================================
-# 1. LOAD DATA
-# ============================================================
-
-# Read both CSV files into DataFrames
 data1 = pd.read_csv("../../Misc/Run Results/FinrayTestRun.csv")
 data2 = pd.read_csv("../../Misc/Run Results/FinrayManyVariants.csv")
 
-# Combine them (headers will automatically align)
 data = pd.concat([data1, data2], ignore_index=True)
 
 input_columns = [
@@ -44,10 +38,6 @@ X = data[input_columns]
 y = data[output_column]
 
 
-# ============================================================
-# 2. PERMANENT TRAIN / TEST SPLIT
-# ============================================================
-
 X_pool, X_test, y_pool, y_test = train_test_split(
     X,
     y,
@@ -60,10 +50,6 @@ print("Training pool:", len(X_pool))
 print("Test set:", len(X_test))
 
 
-# ============================================================
-# 3. TRAINING SIZES
-# ============================================================
-
 training_sizes = [
     25,
     50,
@@ -72,16 +58,11 @@ training_sizes = [
     len(X_pool)
 ]
 
-# Remove sizes larger than the training pool
 training_sizes = [
     size for size in training_sizes
     if size <= len(X_pool)
 ]
 
-
-# ============================================================
-# 4. MODELS
-# ============================================================
 
 models = {
 
@@ -99,16 +80,8 @@ models = {
 }
 
 
-# ============================================================
-# 5. STORE RESULTS
-# ============================================================
-
 results = []
 
-
-# ============================================================
-# 6. TRAIN EACH MODEL AT EACH TRAINING SIZE
-# ============================================================
 
 for training_size in training_sizes:
 
@@ -116,11 +89,6 @@ for training_size in training_sizes:
     print("========================================")
     print(f"TRAINING SIZE: {training_size}")
     print("========================================")
-
-
-    # --------------------------------------------------------
-    # Randomly select training cases
-    # --------------------------------------------------------
 
     X_train = X_pool.sample(
         n=training_size,
@@ -131,20 +99,11 @@ for training_size in training_sizes:
         X_train.index
     ]
 
-
-    # --------------------------------------------------------
-    # Train every model
-    # --------------------------------------------------------
-
     for name, training_function in models.items():
 
         print(f"\nTraining {name}...")
 
-
-        # ====================================================
-        # NEURAL NETWORK
-        # ====================================================
-
+        # Neural Network
         if name == "Neural Network":
 
             model, input_scaler, output_scaler = \
@@ -153,7 +112,6 @@ for training_size in training_sizes:
                     y_train
                 )
 
-            # Scale test inputs
             X_test_scaled = input_scaler.transform(
                 X_test
             )
@@ -163,7 +121,6 @@ for training_size in training_sizes:
                 dtype=torch.float32
             )
 
-            # Predict
             model.eval()
 
             with torch.no_grad():
@@ -172,15 +129,12 @@ for training_size in training_sizes:
                     X_test_tensor
                 ).numpy()
 
-            # Convert back to original units
             predictions = output_scaler.inverse_transform(
                 predictions_scaled
             ).flatten()
 
 
-        # ====================================================
-        # OTHER MODELS
-        # ====================================================
+        # Other models
 
         else:
 
@@ -193,10 +147,6 @@ for training_size in training_sizes:
                 X_test
             )
 
-
-        # ====================================================
-        # CALCULATE METRICS
-        # ====================================================
 
         mae = mean_absolute_error(
             y_test,
@@ -214,11 +164,6 @@ for training_size in training_sizes:
             y_test,
             predictions
         )
-
-
-        # ====================================================
-        # SAVE RESULT
-        # ====================================================
 
         results.append({
 
@@ -253,10 +198,6 @@ for training_size in training_sizes:
                 trained_models[name] = model
 
 
-# ============================================================
-# 7. CONVERT RESULTS TO DATAFRAME
-# ============================================================
-
 results_df = pd.DataFrame(results)
 
 
@@ -267,10 +208,6 @@ print("========================================")
 
 print(results_df.to_string(index=False))
 
-
-# ============================================================
-# 8. SAVE RESULTS
-# ============================================================
 
 results_df.to_csv(
     "training_size_results.csv",
@@ -283,9 +220,6 @@ print(
 )
 
 
-# ============================================================
-# 9. PLOT MAE
-# ============================================================
 
 plt.figure()
 
@@ -314,10 +248,6 @@ plt.grid()
 
 plt.show()
 
-
-# ============================================================
-# 10. PLOT R²
-# ============================================================
 
 plt.figure()
 

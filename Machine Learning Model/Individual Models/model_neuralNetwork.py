@@ -10,10 +10,6 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 import matplotlib.pyplot as plt
 
 
-# ============================================================
-# 1. LOAD DATA
-# ============================================================
-
 data = pd.read_csv("../../../Misc/Run Results/FinrayTestRun.csv")
 
 print("Dataset:")
@@ -21,10 +17,6 @@ print(data.head())
 
 print("\nNumber of simulations:", len(data))
 
-
-# ============================================================
-# 2. DEFINE INPUTS AND OUTPUT
-# ============================================================
 
 
 input_columns = [
@@ -43,10 +35,6 @@ X = data[input_columns].values
 y = data[output_columns].values
 
 
-# ============================================================
-# 3. TRAIN / TEST SPLIT
-# ============================================================
-
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
@@ -54,10 +42,6 @@ X_train, X_test, y_train, y_test = train_test_split(
     random_state=42
 )
 
-
-# ============================================================
-# 4. NORMALISE DATA
-# ============================================================
 
 input_scaler = StandardScaler()
 output_scaler = StandardScaler()
@@ -68,19 +52,12 @@ X_test = input_scaler.transform(X_test)
 y_train = output_scaler.fit_transform(y_train)
 y_test = output_scaler.transform(y_test)
 
-
-# Convert to PyTorch tensors
-
 X_train = torch.tensor(X_train, dtype=torch.float32)
 X_test = torch.tensor(X_test, dtype=torch.float32)
 
 y_train = torch.tensor(y_train, dtype=torch.float32)
 y_test = torch.tensor(y_test, dtype=torch.float32)
 
-
-# ============================================================
-# 5. DEFINE NEURAL NETWORK
-# ============================================================
 
 class NeuralNetwork(nn.Module):
 
@@ -110,10 +87,6 @@ class NeuralNetwork(nn.Module):
 model = NeuralNetwork()
 
 
-# ============================================================
-# 6. LOSS FUNCTION AND OPTIMISER
-# ============================================================
-
 loss_function = nn.MSELoss()
 
 optimizer = torch.optim.Adam(
@@ -121,45 +94,29 @@ optimizer = torch.optim.Adam(
     lr=0.001
 )
 
-
-# ============================================================
-# 7. TRAIN
-# ============================================================
-
 epochs = 1000
 
 for epoch in range(epochs):
 
-    # Make predictions
     predictions = model(X_train)
 
-    # Calculate error
     loss = loss_function(
         predictions,
         y_train
     )
 
-    # Clear previous gradients
     optimizer.zero_grad()
 
-    # Calculate gradients
     loss.backward()
 
-    # Update network
     optimizer.step()
 
-    # Print progress
     if (epoch + 1) % 100 == 0:
 
         print(
             f"Epoch {epoch + 1}/{epochs} "
             f"Loss: {loss.item():.6f}"
         )
-
-
-# ============================================================
-# 8. TEST MODEL
-# ============================================================
 
 model.eval()
 
@@ -168,8 +125,6 @@ with torch.no_grad():
     predictions = model(X_test)
 
 
-# Convert predictions back to original units
-
 predictions = output_scaler.inverse_transform(
     predictions.numpy()
 )
@@ -177,11 +132,6 @@ predictions = output_scaler.inverse_transform(
 actual = output_scaler.inverse_transform(
     y_test.numpy()
 )
-
-
-# ============================================================
-# 9. CALCULATE ERROR
-# ============================================================
 
 mae = mean_absolute_error(
     actual,
@@ -203,10 +153,6 @@ print(f"MAE:  {mae:.4f}")
 print(f"RMSE: {rmse:.4f}")
 
 
-# ============================================================
-# 10. DISPLAY SOME PREDICTIONS
-# ============================================================
-
 print("\nExample predictions:")
 
 for i in range(min(10, len(actual))):
@@ -217,16 +163,11 @@ for i in range(min(10, len(actual))):
     )
 
 
-# ============================================================
-# 11. PLOT FEA VS ML
-# ============================================================
-
 plt.scatter(
     actual,
     predictions
 )
 
-# Perfect prediction line
 
 minimum = min(actual.min(), predictions.min())
 maximum = max(actual.max(), predictions.max())

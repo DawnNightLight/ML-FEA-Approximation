@@ -34,17 +34,16 @@ def select_outermost_faces(surfaces, direction_vector, angle_tolerance_deg, geom
     candidate_centroids = []
     matched_node_tags = set()
 
-    # Pass 1: Gather all surfaces matching direction criteria AND coordinate boundaries
+    # Looking for surfaces pointing in specific direction in specific region
     for dim, surface_tag in surfaces:
         x, y, z = gmsh.model.occ.getCenterOfMass(dim, surface_tag)
         centroid_coords = [x, y, z]
         try:
-            # OPTIONAL COMPONENT FILTER: Check if surface center falls outside specified X, Y, or Z ranges
             if coordinate_bounds is not None:
                 axis_index, val_range = coordinate_bounds
                 current_coordinate = centroid_coords[axis_index]
                 if not (val_range[0] <= current_coordinate <= val_range[1]):
-                    continue  # Skip this surface completely if it's out of bounds
+                    continue
 
             normal = gmsh.model.getNormal(surface_tag, [x, y])
             normal_vec = np.array(normal)
@@ -61,7 +60,6 @@ def select_outermost_faces(surfaces, direction_vector, angle_tolerance_deg, geom
     if not candidate_surfaces:
         return []
 
-    # Pass 2: Project centroids to handle depth-filtering
     candidate_centroids = np.array(candidate_centroids)
 
     projection_axis = -target_vec if look_for_source else target_vec
@@ -69,7 +67,6 @@ def select_outermost_faces(surfaces, direction_vector, angle_tolerance_deg, geom
 
     target_boundary_distance = np.max(projected_distances)
 
-    # Pass 3: Extract nodes from surfaces resting exactly on that outermost layer
     for i, (dim, surface_tag) in enumerate(candidate_surfaces):
         if np.abs(projected_distances[i] - target_boundary_distance) < geometric_tolerance:
             node_tags, _, _ = gmsh.model.mesh.getNodes(dim, surface_tag, includeBoundary=True)
@@ -80,30 +77,21 @@ def select_outermost_faces(surfaces, direction_vector, angle_tolerance_deg, geom
 
 def run_automated_loading_pipeline(step_filepath, output_inp_path, force_direction=(1.0, 0.0, 0.0),
                                    angle_tolerance_deg=15.0, total_force_n=500.0, target_element_size=1.5):
-    """
-    1. Loads CAD assembly, resolving intersecting/touching surfaces.
-    2. Generates a pure 3D solid element volume mesh.
-    3. Searches node coordinates natively via Gmsh API matching the target direction.
-    4. Writes a clean .inp file and appends a dedicated *NSET block to avoid duplicate shell parts.
-    """
-    # --- PHASE 1: INITIALISE AND SOLID VOLUME SETUP ---
+
     gmsh.initialize()
     gmsh.model.add("directional_loading_pipeline")
 
     gmsh.model.occ.importShapes(step_filepath)
     gmsh.model.occ.synchronize()
 
-    # Fragment matching faces to resolve PLC boundary intersection errors
     all_volumes = gmsh.model.getEntities(dim=3)
     gmsh.model.occ.fragment(all_volumes, [])
     gmsh.model.occ.synchronize()
 
-    # Save exclusively the 3D Volumes to ensure no secondary shell surfaces are generated
     refreshed_volumes = gmsh.model.getEntities(dim=3)
     volume_tags = [tag for dim, tag in refreshed_volumes]
     gmsh.model.addPhysicalGroup(3, volume_tags, name="SOLID_BODIES")
 
-    # --- PHASE 2: PURE 3D MESH CONFIGURATION & GENERATION ---
     all_points = gmsh.model.getEntities(dim=0)
     gmsh.model.mesh.setSize(all_points, target_element_size)
 
@@ -112,21 +100,16 @@ def run_automated_loading_pipeline(step_filepath, output_inp_path, force_directi
     gmsh.option.setNumber("Mesh.MeshSizeFromCurvature", 1)
     gmsh.option.setNumber("Mesh.MinimumElementsPerTwoPi", 16)
 
-    # Explicitly force export settings to only write defined physical volumes (prevents shells)
     gmsh.option.setNumber("Mesh.SaveAll", 0)
     gmsh.option.setNumber("Mesh.SaveGroupsOfNodes", 0)
 
     gmsh.model.mesh.generate(3)
 
-    # --- PHASE 3: NATIVE API NODE GEOMETRY DIRECTION SCANNER ---
     surfaces = gmsh.model.getEntities(dim=2)
     geometric_tolerance = target_element_size * 0.01
 
-    # Define your window filter: Look only at surfaces where Z is between 25.0 and 75.0 units
-    # Format: (axis_index, [min_value, max_value]) where 0=X, 1=Y, 2=Z
     z_search_window = (2, [300.0, 600.0])
 
-    # Extract nodes for the loading surface (look_for_source=True)
     final_node_list = select_outermost_faces(
         surfaces=surfaces,
         direction_vector=force_direction,
@@ -142,17 +125,13 @@ def run_automated_loading_pipeline(step_filepath, output_inp_path, force_directi
 
     print(f"Extracted {len(final_node_list)} raw structural nodes matching direction criteria.")
 
-    # --- FIX: Recalculate target_vec for downstream directional force calculations ---
     target_vec = np.array(force_direction)
     target_vec = target_vec / np.linalg.norm(target_vec)
 
-    # Write the base 3D volume mesh to the destination file path
     gmsh.write(output_inp_path)
 
-    # --- PHASE 3b: BOUNDARY CONDITION SCANNER (USING SHARED METHOD) ---
     boundary_direction = [0.0, 0.0, -1.0]
 
-    # Extract nodes for the bottom constraint (look_for_source=False targets lowest Z)
     fixed_node_list = select_outermost_faces(
         surfaces=surfaces,
         direction_vector=boundary_direction,
@@ -161,7 +140,6 @@ def run_automated_loading_pipeline(step_filepath, output_inp_path, force_directi
         look_for_source=False
     )
 
-    # --- PHASE 3c: FORMAT AS NODE SET AND BOUNDARY BLOCK ---
     boundary_text_lines = []
 
     if fixed_node_list:
@@ -169,16 +147,13 @@ def run_automated_loading_pipeline(step_filepath, output_inp_path, force_directi
         boundary_text_lines.append("** BOUNDARY CONDITIONS DEFINED BY PIPELINE")
         boundary_text_lines.append("** -------------------------------------------------------------")
 
-        # 1. Physically declare and populate the Node Set
         boundary_text_lines.append("*Nset, nset=BoundarySet")
 
-        # Chunk node tags into 16 items per line to follow Abaqus standards
         for i in range(0, len(fixed_node_list), 16):
             chunk = fixed_node_list[i:i + 16]
             line_chunk = ", ".join(map(str, chunk))
             boundary_text_lines.append(line_chunk)
 
-        # 2. Define the Boundary Condition constraints mapping to that specific set name
         boundary_text_lines.extend([
             "*Boundary, op=New",
             "** Name: Fixed-1",
@@ -188,8 +163,6 @@ def run_automated_loading_pipeline(step_filepath, output_inp_path, force_directi
 
         boundary_deck_output = "\n".join(boundary_text_lines)
 
-        # --- PHASE 3d: APPEND CUSTOM DATA DIRECTLY TO THE EXPORTED INP FILE ---
-        # This appends the node set string explicitly to the bottom of the gmsh output
         with open(output_inp_path, "a") as file_append:
             file_append.write(boundary_deck_output + "\n")
 
@@ -199,16 +172,13 @@ def run_automated_loading_pipeline(step_filepath, output_inp_path, force_directi
         print("Warning: No boundary nodes were matched for fixity. INP file left unmodified.")
 
     if fixed_node_list:
-        # Define the Node Set (BoundarySet)
         boundary_text_lines.append("*Nset, nset=BoundarySet")
 
-        # Chunk node tags into 16 items per line to follow Abaqus standards
         for i in range(0, len(fixed_node_list), 16):
             chunk = fixed_node_list[i:i + 16]
             line_chunk = ", ".join(map(str, chunk))
             boundary_text_lines.append(line_chunk)
 
-        # Define the Boundary Condition constraints
         boundary_text_lines.extend([
             "*Boundary, op=New",
             "** Name: Fixed-1",
@@ -223,14 +193,12 @@ def run_automated_loading_pipeline(step_filepath, output_inp_path, force_directi
 
     gmsh.finalize()
 
-    # --- PHASE 4: APPEND INLINE NSET & LOAD CARDS TO ABAQUS FILE ---
     with open(output_inp_path, "a") as inp:
         inp.write("\n** " + "=" * 40 + "\n")
         inp.write("** AUTOMATED DIRECTIONAL NODE SET (NO EXTRA SHELL ELEMENTS)\n")
         inp.write("** " + "=" * 40 + "\n")
         inp.write("*NSET, NSET=LOAD_SURFACE_NODES\n")
 
-        # Format list to write up to 10 node IDs per line per standard Abaqus syntax rules
         for i in range(0, len(final_node_list), 10):
             chunk = final_node_list[i:i + 10]
             line = ", ".join(map(str, chunk))
@@ -266,7 +234,6 @@ def run_automated_loading_pipeline(step_filepath, output_inp_path, force_directi
         inp.write("** Name: Concentrated_Force - 1\n")
         inp.write("*Cload\n")
 
-        # Inject precise directional force scaled tracking components
         if abs(target_vec[0]) > 0.001:
             inp.write(f"LOAD_SURFACE_NODES, 1, {total_force_n * target_vec[0]:.2f}\n")
         if abs(target_vec[1]) > 0.001:
@@ -286,35 +253,31 @@ def run_automated_loading_pipeline(step_filepath, output_inp_path, force_directi
     print(f"Success! Finished writing assembly simulation file layout to: {output_inp_path}")
 
 
-# --- EXECUTION LOOP ---
+#EXECUTION LOOP 
 input_folder = Path("../../Misc/STEP Files/FinrayLHSVariants")
 output_folder = Path("../../Misc/INP Files/FinrayLHSVariants")
 
 
-# Create the output folder if it doesn't exist
 output_folder.mkdir(parents=True, exist_ok=True)
 
 failed = []
 for input_file in input_folder.iterdir():
-    # Skip directories; only process files
     if not input_file.is_file():
         continue
 
-    # Change the extension to .doc
     output_file = output_folder / f"{input_file.stem}.inp"
 
     print("Input:", input_file)
     print("Output:", output_file)
-    # Tracks files in millimeters. Looking for faces pointing roughly along the +X axis.
     try:
         if not output_file in output_folder.iterdir():
             run_automated_loading_pipeline(
                 step_filepath=str(input_file),
                 output_inp_path=str(output_file),
                 force_direction=(-1.0, 0.0, 0.0),  # Target loading orientation vector
-                angle_tolerance_deg=20.0,  # Acceptable angular search window error deviation
-                total_force_n=50.0,  # Applied force in Newtons
-                target_element_size=50  # Crisp element size definition in mm
+                angle_tolerance_deg=20.0,  # Acceptable angle deviation
+                total_force_n=50.0,  # Force of load
+                target_element_size=50  # Element size in mm
             )
     except:
         print(f"{input_file.stem} failed.")

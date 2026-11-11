@@ -9,9 +9,7 @@ from sklearn.ensemble import RandomForestRegressor
 from xgboost import XGBRegressor
 
 
-# ============================================================
-# LINEAR REGRESSION
-# ============================================================
+# Linear regression
 
 def train_linear_regression(X_train, y_train):
 
@@ -25,9 +23,7 @@ def train_linear_regression(X_train, y_train):
     return model
 
 
-# ============================================================
-# RANDOM FOREST
-# ============================================================
+# Random forest
 
 def train_random_forest(X_train, y_train):
 
@@ -49,10 +45,7 @@ def train_random_forest(X_train, y_train):
     return model
 
 
-# ============================================================
-# XGBOOST
-# ============================================================
-
+# xgboost
 def train_xgboost(X_train, y_train):
 
     model = XGBRegressor(
@@ -73,10 +66,7 @@ def train_xgboost(X_train, y_train):
     return model
 
 
-# ============================================================
-# NEURAL NETWORK
-# ============================================================
-
+# neural network
 class NeuralNetwork(nn.Module):
 
     def __init__(self, input_size):
@@ -108,9 +98,6 @@ def train_neural_network(
     epochs=1000
 ):
 
-    # --------------------------------------------------------
-    # Scale inputs and outputs
-    # --------------------------------------------------------
 
     input_scaler = StandardScaler()
     output_scaler = StandardScaler()
@@ -122,9 +109,6 @@ def train_neural_network(
     )
 
 
-    # --------------------------------------------------------
-    # Convert to PyTorch tensors
-    # --------------------------------------------------------
 
     X_tensor = torch.tensor(
         X_scaled,
@@ -137,18 +121,11 @@ def train_neural_network(
     )
 
 
-    # --------------------------------------------------------
-    # Create network
-    # --------------------------------------------------------
-
     model = NeuralNetwork(
         input_size=X_train.shape[1]
     )
 
 
-    # --------------------------------------------------------
-    # Loss and optimiser
-    # --------------------------------------------------------
 
     loss_function = nn.MSELoss()
 
@@ -157,10 +134,6 @@ def train_neural_network(
         lr=0.001
     )
 
-
-    # --------------------------------------------------------
-    # Training
-    # --------------------------------------------------------
 
     model.train()
 
@@ -180,5 +153,4 @@ def train_neural_network(
         optimizer.step()
 
 
-    # Return everything needed for prediction
     return model, input_scaler, output_scaler
